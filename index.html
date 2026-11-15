@@ -1,0 +1,952 @@
+<title>Projeto de Sinalização</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one-screen drafting tool — control sheet on the left, orthophoto canvas on the right; stacks on phones. */
+:root {
+  --bg: #eef0ee;
+  --panel: #ffffff;
+  --ink: #1d2422;
+  --muted: #5d6a66;
+  --line: #d3d9d6;
+  --accent: #1f6f5c;      /* placa verde de rodovia */
+  --accent-ink: #ffffff;
+  --sign: #e8a317;        /* amarelo de sinalização */
+  --ok: #1e7a3c;
+  --bad: #b3261e;
+  --warn: #9a6400;
+  --chip-ok: #dcefe2;
+  --chip-bad: #f8dcd9;
+  --canvas-bg: #2a302e;
+  --f-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #151a19; --panel: #1d2422; --ink: #e6ebe9; --muted: #9aa8a3; --line: #33403c;
+    --accent: #3fa98c; --accent-ink: #08130f; --sign: #f0b636; --ok: #5cc27e; --bad: #f2867c; --warn: #e3b25a;
+    --chip-ok: #1d3a28; --chip-bad: #4a221f; --canvas-bg: #0e1211; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #151a19; --panel: #1d2422; --ink: #e6ebe9; --muted: #9aa8a3; --line: #33403c;
+  --accent: #3fa98c; --accent-ink: #08130f; --sign: #f0b636; --ok: #5cc27e; --bad: #f2867c; --warn: #e3b25a;
+  --chip-ok: #1d3a28; --chip-bad: #4a221f; --canvas-bg: #0e1211; color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+.app {
+  height: 100%; display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); gap: 12px;
+  padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.side { overflow-y: auto; min-width: 0; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 2px 6px; }
+.brand .plate { background: var(--accent); color: var(--accent-ink); font-family: var(--f-display); font-weight: 700; letter-spacing: .04em; padding: 4px 8px; border-radius: 4px; border: 2px solid var(--accent-ink); outline: 2px solid var(--accent); font-size: 15px; }
+.brand h1 { font-family: var(--f-display); font-size: 20px; margin: 0; line-height: 1.1; text-wrap: balance; }
+.brand small { display: block; color: var(--muted); font-family: var(--f-body); font-size: 12px; font-weight: 400; }
+section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+section.card > h2 { margin: 0; font-family: var(--f-display); font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); display: flex; justify-content: space-between; align-items: baseline; }
+section.card > h2 .step { color: var(--accent); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+label.f { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); min-width: 0; }
+input[type=number], input[type=text], select {
+  font: 500 14px var(--f-mono); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 7px; width: 100%; min-width: 0;
+}
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--sign); outline-offset: 1px; }
+button {
+  font: 600 13px var(--f-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 10px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.on { background: var(--sign); color: #1d1a10; border-color: var(--sign); }
+button.ghost { background: transparent; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.file { position: relative; overflow: hidden; display: inline-flex; }
+.file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.info { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.info b { color: var(--ink); font-weight: 600; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+.pill.ok { background: var(--chip-ok); color: var(--ok); }
+.pill.bad { background: var(--chip-bad); color: var(--bad); }
+.pill.n { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+details summary { cursor: pointer; font-size: 12px; color: var(--accent); font-weight: 600; }
+details[open] summary { margin-bottom: 6px; }
+.sum { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sum div { background: var(--bg); border-radius: 6px; padding: 6px 8px; }
+.sum span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.sum b { font: 600 16px var(--f-mono); font-variant-numeric: tabular-nums; }
+.sum b.bad { color: var(--bad); } .sum b.ok { color: var(--ok); }
+.xs { display: flex; height: 34px; border-radius: 4px; overflow: hidden; border: 1px solid var(--line); font: 600 10px var(--f-mono); }
+.xs > div { display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; min-width: 0; color: #e9ecea; border-right: 2px solid #f5f5f0; }
+.xs .seg { background: #4c524f; min-width: 32px; } .xs .lane { background: #3a3f3d; } .xs .sh-ok { background: #2f6a43; } .xs .sh-bad { background: #8d2a22; }
+.xs > div:last-child { border-right: none; }
+.xs-cap { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+.tablewrap { overflow: auto; max-height: 280px; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 12px; }
+th, td { padding: 4px 6px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line); text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+td { font-family: var(--f-mono); border-bottom: 1px solid var(--line); }
+tr.bad td.sh { color: var(--bad); font-weight: 600; }
+tr.ok td.sh { color: var(--ok); }
+tbody tr { cursor: pointer; } tbody tr:hover { background: var(--bg); } tr.sel { outline: 2px solid var(--sign); outline-offset: -2px; }
+.stage { position: relative; min-width: 0; min-height: 0; border-radius: 8px; overflow: hidden; background: var(--canvas-bg); border: 1px solid var(--line); }
+canvas#cv { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+.toolbar { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+.toolbar > * { pointer-events: auto; }
+.toolbar button { background: rgba(20,24,23,.82); color: #e8ecea; border-color: rgba(255,255,255,.18); backdrop-filter: blur(4px); }
+.toolbar button.on { background: var(--sign); color: #1d1a10; border-color: var(--sign); }
+.hint { position: absolute; left: 10px; bottom: 10px; right: 10px; color: #e8ecea; background: rgba(20,24,23,.78); border-radius: 6px; padding: 6px 10px; font-size: 12px; pointer-events: none; max-width: 640px; }
+.readout { position: absolute; right: 10px; bottom: 10px; font: 500 11px var(--f-mono); color: #cfd6d3; background: rgba(20,24,23,.78); padding: 4px 8px; border-radius: 5px; pointer-events: none; }
+.drop { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(31,111,92,.35); border: 3px dashed var(--sign); color: #fff; font: 700 22px var(--f-display); pointer-events: none; }
+.toast { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); background: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 6px 12px; border-radius: 6px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.25); pointer-events: none; max-width: 90%; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+textarea#csvOut { width: 100%; height: 90px; font: 11px var(--f-mono); background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 5px; }
+@media (max-width: 820px) {
+  html, body { height: auto; }
+  .app { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .stage { height: 68vh; order: -1; }
+  .side { overflow: visible; padding-right: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <span class="plate">BR</span>
+      <h1>Projeto de Sinalização<small>Verificação de seção-tipo sobre ortofoto de drone</small></h1>
+    </div>
+
+    <section class="card">
+      <h2><span><span class="step">1</span> · Imagem</span></h2>
+      <div class="row">
+        <label class="file"><button class="primary" type="button" tabindex="-1">Abrir imagem…</button>
+          <input id="fileIn" type="file" multiple accept="image/*,.tif,.tiff,.jgw,.tfw,.pgw,.wld,.jpgw,.tifw"></label>
+        <button id="btnSample" type="button">Carregar exemplo</button>
+      </div>
+      <div class="info" id="imgInfo">Arraste a ortofoto (GeoTIFF, JPG ou PNG) para a área da imagem. GeoTIFF e arquivos de georreferência (.jgw/.tfw) definem a escala automaticamente.</div>
+    </section>
+
+    <section class="card">
+      <h2><span><span class="step">2</span> · Escala</span><span id="scaleBadge" class="pill n">sem escala</span></h2>
+      <div class="grid2">
+        <label class="f">GSD (cm/pixel)<input id="gsdIn" type="number" step="0.01" min="0.1" placeholder="ex.: 2,5"></label>
+        <div class="row" style="align-items:flex-end"><button id="btnGsd" type="button">Aplicar GSD</button></div>
+      </div>
+      <div class="row">
+        <button id="tCalib" type="button" data-tool="calib">Calibrar por distância conhecida</button>
+      </div>
+      <div id="calibBox" class="grid2" hidden>
+        <label class="f">Distância real (m)<input id="calibLen" type="number" step="0.01" min="0.01" value="3.60"></label>
+        <div class="row" style="align-items:flex-end"><button id="btnCalibOk" class="primary" type="button">Aplicar</button></div>
+      </div>
+      <details>
+        <summary>Calcular GSD de uma foto nadiral única</summary>
+        <div class="grid2">
+          <label class="f">Altura de voo (m)<input id="gAlt" type="number" value="60"></label>
+          <label class="f">Distância focal (mm)<input id="gFoc" type="number" step="0.01" value="8.8"></label>
+          <label class="f">Largura do sensor (mm)<input id="gSen" type="number" step="0.01" value="13.2"></label>
+          <label class="f">Largura da imagem (px)<input id="gImg" type="number" value="5472"></label>
+        </div>
+        <div class="row"><button id="btnGcalc" type="button">Calcular e aplicar</button><span class="info mono" id="gOut"></span></div>
+        <div class="info">Valores padrão de um sensor 1" (13,2 mm, 8,8 mm, 5472 px). Foto única sofre distorção de lente e de relevo; prefira ortomosaico.</div>
+      </details>
+      <div class="info" id="scaleInfo"></div>
+    </section>
+
+    <section class="card">
+      <h2><span><span class="step">3</span> · Bordos da plataforma</span></h2>
+      <div class="row">
+        <button id="tRef" type="button" data-tool="ref">Bordo de referência</button>
+        <button id="tExt" type="button" data-tool="ext">Bordo externo</button>
+      </div>
+      <div class="row">
+        <button id="tEdit" type="button" data-tool="edit">Editar vértices</button>
+        <button id="tMeas" type="button" data-tool="meas">Medir</button>
+        <button id="btnInvert" type="button" title="Inverte o sentido do estaqueamento">Inverter sentido</button>
+      </div>
+      <div class="row">
+        <button id="btnClrRef" class="ghost" type="button">Apagar referência</button>
+        <button id="btnClrExt" class="ghost" type="button">Apagar externo</button>
+      </div>
+      <div class="info"><b>Referência</b> = bordo do lado da faixa de segurança (canteiro central). <b>Externo</b> = limite onde termina o acostamento. Clique para adicionar pontos, duplo clique ou Enter para concluir, Backspace desfaz o último ponto.</div>
+      <div class="info mono" id="edgeInfo"></div>
+    </section>
+
+    <section class="card">
+      <h2><span><span class="step">4</span> · Seção-tipo de projeto</span></h2>
+      <div class="grid2">
+        <label class="f">Faixa de segurança (m)<input id="pSeg" type="number" step="0.05" value="0.60"></label>
+        <label class="f">Nº de faixas<input id="pLanes" type="number" step="1" min="1" max="6" value="2"></label>
+        <label class="f">Largura da faixa (m)<input id="pLane" type="number" step="0.05" value="3.60"></label>
+        <label class="f">Acostamento mínimo (m)<input id="pMin" type="number" step="0.05" value="2.50"></label>
+        <label class="f">Largura da linha (m)<input id="pLineW" type="number" step="0.01" value="0.15"></label>
+        <label class="f">Intervalo de estacas (m)<input id="pStep" type="number" step="1" min="1" value="20"></label>
+        <label class="f">Km inicial<input id="pKm" type="text" value="0+000"></label>
+        <label class="f">Tracejado LMS (traço/vão m)<input id="pDash" type="text" value="4/12"></label>
+      </div>
+      <label class="f">Como as larguras são medidas
+        <select id="pConv">
+          <option value="eixo">Entre eixos das linhas (0,60 + 3,60 + 3,60 = 7,80 m)</option>
+          <option value="faces">Livres entre linhas (soma a largura de cada linha)</option>
+        </select>
+      </label>
+      <div class="info" id="secInfo"></div>
+    </section>
+
+    <section class="card">
+      <h2><span><span class="step">5</span> · Resultado</span><span id="resBadge" class="pill n">aguardando</span></h2>
+      <div class="sum" id="sumBox"></div>
+      <div>
+        <div class="xs" id="xsBar"></div>
+        <div class="xs-cap"><span id="xsLeft">bordo ref.</span><span id="xsRight">bordo ext.</span></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:#f4f4ef"></i>linhas de projeto</span>
+        <span><i style="background:#3fd0ff"></i>bordo ref.</span>
+        <span><i style="background:#ff5fd2"></i>bordo ext.</span>
+        <span><i style="background:#2fbf5b"></i>acost. ≥ mín.</span>
+        <span><i style="background:#ff3b30"></i>acost. &lt; mín.</span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Estaca</th><th>Plataf.</th><th>Acost.</th><th>Faixa máx.</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="info">Faixa máx. = largura de faixa que ainda garantiria o acostamento mínimo naquela estaca.</div>
+    </section>
+
+    <section class="card">
+      <h2><span><span class="step">6</span> · Exportar</span></h2>
+      <div class="row">
+        <button id="btnPng" type="button">Imagem do projeto (PNG)</button>
+        <button id="btnCsv" type="button">Planilha (CSV)</button>
+        <button id="btnCopy" type="button">Copiar tabela</button>
+      </div>
+      <div class="row">
+        <button id="btnSave" type="button">Salvar projeto</button>
+        <label class="file"><button type="button" tabindex="-1">Abrir projeto…</button><input id="projIn" type="file" accept=".json,application/json"></label>
+      </div>
+      <textarea id="csvOut" readonly hidden aria-label="Tabela em CSV"></textarea>
+      <div class="info">Se o download for bloqueado pelo navegador, use “Copiar tabela” e cole no Excel.</div>
+    </section>
+  </aside>
+
+  <main class="stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div class="toolbar">
+      <button type="button" data-tool="pan">Mover</button>
+      <button type="button" data-tool="ref">Bordo ref.</button>
+      <button type="button" data-tool="ext">Bordo ext.</button>
+      <button type="button" data-tool="edit">Editar</button>
+      <button type="button" data-tool="meas">Medir</button>
+      <button type="button" id="btnFit">Enquadrar</button>
+      <button type="button" id="btnLabels">Rótulos</button>
+    </div>
+    <div class="hint" id="hint"></div>
+    <div class="readout" id="readout"></div>
+    <div class="drop" id="drop" hidden>Solte a imagem aqui</div>
+    <div class="toast" id="toast" hidden></div>
+  </main>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const cv = $('#cv'), ctx = cv.getContext('2d'), stage = $('#stage');
+const MAXPX = 64e6; // limite de pixels para GeoTIFF decodificado no navegador
+
+const st = {
+  img: null, imgW: 0, imgH: 0, name: '', sx: null, sy: null, scaleSrc: '',
+  ref: [], ext: [], calib: [], meas: [], tool: 'pan',
+  view: { s: 1, tx: 0, ty: 0 }, geo: null, hover: null, sel: null, labels: true, sample: false,
+};
+const P = { seg: .6, lanes: 2, lane: 3.6, minSh: 2.5, lineW: .15, step: 20, km0: 0, dash: 4, gap: 12, conv: 'eixo' };
+
+/* ---------- utilidades ---------- */
+const fmt = (v, d = 2) => (v == null || !isFinite(v)) ? '—' : v.toFixed(d).replace('.', ',');
+const num = s => parseFloat(String(s).replace(',', '.'));
+const kmStr = m => { const r = Math.round(m); const k = Math.floor(r / 1000); return k + '+' + String(((r % 1000) + 1000) % 1000).padStart(3, '0'); };
+const kmParse = s => { s = String(s).trim(); const m = s.match(/^(\d+)\s*\+\s*(\d+(?:[.,]\d+)?)$/); if (m) return +m[1] * 1000 + num(m[2]); const v = num(s); return isFinite(v) ? v : 0; };
+const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+const cross = (a, b) => a.x * b.y - a.y * b.x;
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const toM = p => ({ x: p.x * st.sx, y: p.y * st.sy });
+const toPx = m => ({ x: m.x / st.sx, y: m.y / st.sy });
+const scr = p => ({ x: p.x * st.view.s + st.view.tx, y: p.y * st.view.s + st.view.ty });
+const unscr = (x, y) => ({ x: (x - st.view.tx) / st.view.s, y: (y - st.view.ty) / st.view.s });
+const mppAvg = () => (st.sx + st.sy) / 2;
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2600); }
+
+/* ---------- geometria ---------- */
+function compute() {
+  st.geo = null;
+  if (!st.sx || st.ref.length < 2) return;
+  const R = st.ref.map(toM), E = st.ext.map(toM);
+  if (E.length >= 2) { // prolonga 3 m as pontas do bordo externo para pegar as seções extremas
+    const ext = (a, b) => { const d = dist(a, b) || 1; return { x: a.x + (a.x - b.x) / d * 3, y: a.y + (a.y - b.y) / d * 3 }; };
+    E[0] = ext(E[0], E[1]); E[E.length - 1] = ext(E[E.length - 1], E[E.length - 2]);
+  }
+  const cum = [0];
+  for (let i = 1; i < R.length; i++) cum.push(cum[i - 1] + dist(R[i - 1], R[i]));
+  const L = cum[cum.length - 1];
+  if (L <= 0) return;
+  const at = s => {
+    s = Math.max(0, Math.min(L, s));
+    let i = 1; while (i < cum.length - 1 && cum[i] < s) i++;
+    const seg = cum[i] - cum[i - 1] || 1, t = (s - cum[i - 1]) / seg;
+    return { x: R[i - 1].x + (R[i].x - R[i - 1].x) * t, y: R[i - 1].y + (R[i].y - R[i - 1].y) * t };
+  };
+  const tan = s => { const a = at(s - 2), b = at(s + 2); const d = Math.hypot(b.x - a.x, b.y - a.y) || 1; return { x: (b.x - a.x) / d, y: (b.y - a.y) / d }; };
+  // lado do bordo externo
+  let acc = 0;
+  if (E.length) {
+    for (const e of E) {
+      let best = Infinity, sgn = 0;
+      for (let i = 1; i < R.length; i++) {
+        const d = sub(R[i], R[i - 1]), l2 = d.x * d.x + d.y * d.y || 1;
+        const u = Math.max(0, Math.min(1, ((e.x - R[i - 1].x) * d.x + (e.y - R[i - 1].y) * d.y) / l2));
+        const q = { x: R[i - 1].x + d.x * u, y: R[i - 1].y + d.y * u }, dd = dist(q, e);
+        if (dd < best) { best = dd; sgn = Math.sign(cross(d, sub(e, R[i - 1]))); }
+      }
+      acc += sgn;
+    }
+  }
+  const side = acc >= 0 ? 1 : -1;
+  const nrm = s => { const t = tan(s); return { x: -t.y * side, y: t.x * side }; };
+  const hit = (p, n) => {
+    let best = null;
+    for (let i = 1; i < E.length; i++) {
+      const a = E[i - 1], d = sub(E[i], a), den = cross(n, d);
+      if (Math.abs(den) < 1e-12) continue;
+      const ap = sub(a, p), t = cross(ap, d) / den, u = cross(ap, n) / den;
+      if (u >= -1e-9 && u <= 1 + 1e-9 && t > 0.05 && t < 80 && (best == null || t < best)) best = t;
+    }
+    return best;
+  };
+  const w = P.lineW, n = P.lanes;
+  const axes = [];
+  for (let k = 0; k <= n; k++) {
+    const off = P.conv === 'eixo' ? P.seg + k * P.lane : P.seg + w / 2 + k * (P.lane + w);
+    axes.push({ off, kind: k === 0 ? 'lbo-ref' : (k === n ? 'lbo-ext' : 'lms') });
+  }
+  const total = P.conv === 'eixo' ? P.seg + n * P.lane : P.seg + (n + 1) * w + n * P.lane;
+  const ds = Math.max(0.25, L / 6000);
+  const dense = [];
+  for (let s = 0; s <= L + 1e-6; s += ds) dense.push(sample(Math.min(s, L)));
+  if (dense[dense.length - 1].s < L - 1e-6) dense.push(sample(L));
+  function sample(s) { const p = at(s), nn = nrm(s), W = E.length >= 2 ? hit(p, nn) : null; return { s, p, n: nn, W, sh: W == null ? null : W - total }; }
+  const stations = [];
+  const step = Math.max(1, P.step);
+  const first = Math.ceil(P.km0 / step) * step - P.km0;
+  stations.push(sample(0));
+  for (let s = first; s < L - 0.5; s += step) if (s > 0.5) stations.push(sample(s));
+  stations.push(sample(L));
+  // resumo
+  let lenBad = 0, lenNeg = 0, lenCov = 0, minSh = null, minAt = null, minW = null, maxW = null;
+  for (let i = 0; i < dense.length; i++) {
+    const d = dense[i]; if (d.W == null) continue;
+    const seg = i < dense.length - 1 ? dense[i + 1].s - d.s : 0;
+    lenCov += seg;
+    if (d.sh < P.minSh) lenBad += seg;
+    if (d.sh < 0) lenNeg += seg;
+    if (minSh == null || d.sh < minSh) { minSh = d.sh; minAt = d.s; }
+    if (minW == null || d.W < minW) minW = d.W;
+    if (maxW == null || d.W > maxW) maxW = d.W;
+  }
+  st.geo = { L, dense, stations, axes, total, lenBad, lenNeg, lenCov, minSh, minAt, minW, maxW };
+}
+
+/* ---------- desenho ---------- */
+function drawAll(c, W, H, view, opt = {}) {
+  const k = opt.k || 1;
+  const S = m => { const p = toPx(m); return { x: p.x * view.s + view.tx, y: p.y * view.s + view.ty }; };
+  const SP = p => ({ x: p.x * view.s + view.tx, y: p.y * view.s + view.ty });
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.fillStyle = getComputedStyle(stage).backgroundColor || '#222';
+  c.fillRect(0, 0, W, H);
+  if (st.img) {
+    c.setTransform(view.s, 0, 0, view.s, view.tx, view.ty);
+    c.imageSmoothingEnabled = view.s < 3;
+    c.drawImage(st.img, 0, 0);
+    c.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  const g = st.geo;
+  const mpx = st.sx ? mppAvg() : 1;
+  const m2s = m => m / mpx * view.s;
+  if (g) {
+    // acostamento colorido
+    for (let i = 0; i < g.dense.length - 1; i++) {
+      const a = g.dense[i], b = g.dense[i + 1];
+      if (a.W == null || b.W == null) continue;
+      const sh = Math.min(a.sh, b.sh);
+      c.fillStyle = sh >= P.minSh ? 'rgba(47,191,91,.38)' : (sh >= 0 ? 'rgba(255,59,48,.45)' : 'rgba(150,0,0,.6)');
+      const e1 = S({ x: a.p.x + a.n.x * g.total, y: a.p.y + a.n.y * g.total });
+      const e2 = S({ x: b.p.x + b.n.x * g.total, y: b.p.y + b.n.y * g.total });
+      const o2 = S({ x: b.p.x + b.n.x * b.W, y: b.p.y + b.n.y * b.W });
+      const o1 = S({ x: a.p.x + a.n.x * a.W, y: a.p.y + a.n.y * a.W });
+      c.beginPath(); c.moveTo(e1.x, e1.y); c.lineTo(e2.x, e2.y); c.lineTo(o2.x, o2.y); c.lineTo(o1.x, o1.y); c.closePath(); c.fill();
+    }
+    // linhas de projeto
+    const lw = Math.max(1.5 * k, m2s(P.lineW));
+    for (const ax of g.axes) {
+      c.beginPath();
+      g.dense.forEach((d, i) => { const q = S({ x: d.p.x + d.n.x * ax.off, y: d.p.y + d.n.y * ax.off }); i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
+      c.lineCap = 'butt'; c.lineJoin = 'round';
+      if (ax.kind === 'lms') c.setLineDash([m2s(P.dash), m2s(P.gap)]); else c.setLineDash([]);
+      c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = lw + 2.5 * k; c.stroke();
+      c.strokeStyle = '#f4f4ef'; c.lineWidth = lw; c.stroke();
+      c.setLineDash([]);
+    }
+    // estacas
+    if (st.labels) {
+      c.font = `600 ${11 * k}px "JetBrains Mono", monospace`;
+      c.textBaseline = 'middle';
+      g.stations.forEach((d, idx) => {
+        const a = S(d.p);
+        const far = d.W != null ? d.W : g.total + P.minSh;
+        const b = S({ x: d.p.x + d.n.x * far, y: d.p.y + d.n.y * far });
+        c.strokeStyle = 'rgba(255,215,64,.9)'; c.lineWidth = 1 * k; c.setLineDash([3 * k, 3 * k]);
+        c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke(); c.setLineDash([]);
+        const txt = `${kmStr(P.km0 + d.s)}  A=${fmt(d.sh)}`;
+        const good = d.sh != null && d.sh >= P.minSh;
+        const tw = c.measureText(txt).width + 10 * k, th = 17 * k;
+        const lx = b.x + 8 * k, ly = b.y;
+        c.fillStyle = d.sh == null ? 'rgba(40,40,40,.85)' : good ? 'rgba(20,90,45,.9)' : 'rgba(160,25,20,.92)';
+        if (st.sel === idx) { c.fillStyle = 'rgba(232,163,23,.95)'; }
+        c.fillRect(lx, ly - th / 2, tw, th);
+        c.fillStyle = st.sel === idx ? '#1d1a10' : '#fff';
+        c.fillText(txt, lx + 5 * k, ly + 0.5);
+      });
+    }
+  }
+  // bordos traçados
+  const poly = (pts, col, closed) => {
+    if (!pts.length) return;
+    c.beginPath(); pts.forEach((p, i) => { const q = SP(p); i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
+    if (closed && st.hover) { const q = SP(st.hover); c.lineTo(q.x, q.y); }
+    c.strokeStyle = 'rgba(0,0,0,.6)'; c.lineWidth = 4 * k; c.stroke();
+    c.strokeStyle = col; c.lineWidth = 2 * k; c.stroke();
+    if (!opt.export) {
+      const r = st.tool === 'edit' ? 5 : 3;
+      pts.forEach(p => { const q = SP(p); c.beginPath(); c.arc(q.x, q.y, r, 0, 7); c.fillStyle = col; c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1; c.stroke(); });
+    }
+  };
+  poly(st.ref, '#3fd0ff', st.tool === 'ref');
+  poly(st.ext, '#ff5fd2', st.tool === 'ext');
+  if (!opt.export) {
+    const seg2 = (pts, col, label) => {
+      if (!pts.length) return;
+      const a = SP(pts[0]), b = SP(pts[1] || st.hover || pts[0]);
+      c.strokeStyle = col; c.lineWidth = 2; c.setLineDash([6, 4]); c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke(); c.setLineDash([]);
+      [a, b].forEach(q => { c.beginPath(); c.arc(q.x, q.y, 4, 0, 7); c.fillStyle = col; c.fill(); });
+      if (label) { c.font = '600 12px "JetBrains Mono", monospace'; const tw = c.measureText(label).width + 10; c.fillStyle = 'rgba(0,0,0,.8)'; c.fillRect(b.x + 8, b.y - 10, tw, 20); c.fillStyle = col; c.textBaseline = 'middle'; c.fillText(label, b.x + 13, b.y); }
+    };
+    if (st.tool === 'calib' || st.calib.length === 2) seg2(st.calib, '#ffd740', st.calib.length ? `${fmt(dist(st.calib[0], st.calib[1] || st.hover || st.calib[0]), 1)} px` : '');
+    if (st.meas.length) {
+      const b = st.meas[1] || st.hover;
+      const lab = st.sx && b ? `${fmt(dist(toM(st.meas[0]), toM(b)))} m` : '';
+      seg2(st.meas, '#7CFFB2', lab);
+    }
+  }
+}
+
+let raf = 0;
+function redraw() { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; drawAll(ctx, cv.width, cv.height, dprView()); }); }
+function dprView() { const d = devicePixelRatio || 1; return { s: st.view.s * d, tx: st.view.tx * d, ty: st.view.ty * d }; }
+function resize() {
+  const r = stage.getBoundingClientRect(), d = devicePixelRatio || 1;
+  cv.width = Math.max(1, Math.round(r.width * d)); cv.height = Math.max(1, Math.round(r.height * d));
+  redraw();
+}
+new ResizeObserver(resize).observe(stage);
+function fit() {
+  if (!st.img) return;
+  const r = stage.getBoundingClientRect();
+  const s = Math.min(r.width / st.imgW, (r.height - 40) / st.imgH) * 0.94;
+  st.view = { s, tx: (r.width - st.imgW * s) / 2, ty: 40 + (r.height - 40 - st.imgH * s) / 2 };
+  redraw();
+}
+
+/* ---------- interface ---------- */
+const HINTS = {
+  pan: 'Arraste para mover, roda do mouse ou pinça para zoom. Escolha uma ferramenta para traçar.',
+  ref: 'Bordo de referência (lado da faixa de segurança): clique ao longo do bordo do pavimento. Duplo clique ou Enter conclui. Backspace desfaz.',
+  ext: 'Bordo externo (fim do acostamento): clique ao longo do bordo. Duplo clique ou Enter conclui. Backspace desfaz.',
+  edit: 'Arraste um vértice para ajustá-lo. Duplo clique em um vértice o remove. Shift + clique em um trecho insere vértice.',
+  calib: 'Clique nas duas extremidades de uma distância conhecida (ex.: largura de faixa existente, comprimento de um traço de 4 m) e informe o valor no painel.',
+  meas: 'Clique em dois pontos para medir. Útil para conferir larguras existentes.',
+};
+function setTool(t) {
+  if (st.tool === t && t !== 'pan') t = 'pan';
+  st.tool = t;
+  if (t === 'calib') { st.calib = []; $('#calibBox').hidden = true; }
+  if (t === 'meas') st.meas = [];
+  document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
+  $('#hint').textContent = HINTS[t];
+  cv.style.cursor = t === 'pan' ? 'grab' : 'crosshair';
+  redraw();
+}
+document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => {
+  const t = b.dataset.tool;
+  if ((t === 'ref' || t === 'ext' || t === 'meas' || t === 'calib' || t === 'edit') && !st.img) { toast('Abra uma imagem primeiro.'); return; }
+  if ((t === 'ref' || t === 'ext' || t === 'meas') && !st.sx && t !== 'meas') toast('Dica: defina a escala antes para ver as medidas.');
+  setTool(t);
+}));
+
+function readParams() {
+  P.seg = num($('#pSeg').value) || 0;
+  P.lanes = Math.max(1, Math.round(num($('#pLanes').value) || 1));
+  P.lane = num($('#pLane').value) || 0;
+  P.minSh = num($('#pMin').value) || 0;
+  P.lineW = num($('#pLineW').value) || 0;
+  P.step = Math.max(1, num($('#pStep').value) || 20);
+  P.km0 = kmParse($('#pKm').value);
+  const dg = $('#pDash').value.split('/').map(num);
+  P.dash = dg[0] > 0 ? dg[0] : 4; P.gap = dg[1] > 0 ? dg[1] : 12;
+  P.conv = $('#pConv').value;
+  const total = P.conv === 'eixo' ? P.seg + P.lanes * P.lane : P.seg + (P.lanes + 1) * P.lineW + P.lanes * P.lane;
+  $('#secInfo').innerHTML = `Ocupação das faixas: <b class="mono">${fmt(total)} m</b>. Plataforma mínima necessária: <b class="mono">${fmt(total + P.minSh)} m</b>.`;
+  update();
+}
+['#pSeg', '#pLanes', '#pLane', '#pMin', '#pLineW', '#pStep', '#pKm', '#pDash', '#pConv'].forEach(id => $(id).addEventListener('input', readParams));
+
+function setScale(sx, sy, src) {
+  st.sx = sx; st.sy = sy ?? sx; st.scaleSrc = src;
+  $('#gsdIn').value = (mppAvg() * 100).toFixed(2);
+  update();
+}
+
+function update() {
+  compute();
+  // escala
+  const sb = $('#scaleBadge');
+  if (st.sx) {
+    const g = mppAvg() * 100;
+    sb.textContent = `${fmt(g)} cm/px`; sb.className = 'pill ' + (g <= 5 ? 'ok' : 'bad');
+    const unc = 2 * g * Math.SQRT2;
+    $('#scaleInfo').innerHTML = `Origem: <b>${st.scaleSrc}</b>. Erro típico de leitura de uma largura (±1,5 px em cada bordo): <b class="mono">±${fmt(unc, 1)} cm</b>.` + (g > 5 ? ' <b style="color:var(--bad)">Resolução grosseira para decidir diferenças de 10–20 cm.</b>' : '');
+  } else { sb.textContent = 'sem escala'; sb.className = 'pill n'; $('#scaleInfo').textContent = 'Defina a escala pelo GSD do ortomosaico ou calibrando com uma distância conhecida.'; }
+  // bordos
+  const len = pts => { if (!st.sx || pts.length < 2) return null; let l = 0; for (let i = 1; i < pts.length; i++) l += dist(toM(pts[i - 1]), toM(pts[i])); return l; };
+  $('#edgeInfo').textContent = `Referência: ${st.ref.length} pts${len(st.ref) ? ' · ' + fmt(len(st.ref), 1) + ' m' : ''}   Externo: ${st.ext.length} pts${len(st.ext) ? ' · ' + fmt(len(st.ext), 1) + ' m' : ''}`;
+  // resultado
+  const g = st.geo, rb = $('#resBadge'), tb = $('#tbody');
+  tb.innerHTML = '';
+  if (!g || g.minSh == null) {
+    rb.textContent = 'aguardando'; rb.className = 'pill n';
+    $('#sumBox').innerHTML = `<div style="grid-column:1/-1"><span>Próximo passo</span>${!st.img ? 'Abra uma imagem' : !st.sx ? 'Defina a escala' : st.ref.length < 2 ? 'Trace o bordo de referência' : 'Trace o bordo externo'}</div>`;
+    drawXS(null);
+  } else {
+    const okAll = g.lenBad < 0.01;
+    rb.textContent = okAll ? 'atende' : 'não atende'; rb.className = 'pill ' + (okAll ? 'ok' : 'bad');
+    $('#sumBox').innerHTML = `
+      <div><span>Extensão analisada</span><b>${fmt(g.lenCov, 1)} m</b></div>
+      <div><span>Plataforma</span><b>${fmt(g.minW)}–${fmt(g.maxW)} m</b></div>
+      <div><span>Acost. mínimo</span><b class="${g.minSh >= P.minSh ? 'ok' : 'bad'}">${fmt(g.minSh)} m</b></div>
+      <div><span>Em ${kmStr(P.km0 + g.minAt)}</span><b>${fmt(100 * g.lenBad / (g.lenCov || 1), 0)}% abaixo</b></div>
+      <div style="grid-column:1/-1"><span>Extensão com acostamento &lt; ${fmt(P.minSh)} m</span><b class="${okAll ? 'ok' : 'bad'}">${fmt(g.lenBad, 1)} m</b>${g.lenNeg > 0 ? ` <span style="display:inline;color:var(--bad)">· ${fmt(g.lenNeg, 1)} m sem largura nem para as faixas</span>` : ''}</div>`;
+    const frag = document.createDocumentFragment();
+    g.stations.forEach((d, i) => {
+      const tr = document.createElement('tr');
+      const lmax = d.W == null ? null : (P.conv === 'eixo' ? (d.W - P.seg - P.minSh) / P.lanes : (d.W - P.seg - P.minSh - (P.lanes + 1) * P.lineW) / P.lanes);
+      tr.className = d.sh == null ? '' : d.sh >= P.minSh ? 'ok' : 'bad';
+      if (st.sel === i) tr.classList.add('sel');
+      tr.innerHTML = `<td>${kmStr(P.km0 + d.s)}</td><td>${fmt(d.W)}</td><td class="sh">${fmt(d.sh)}</td><td>${fmt(lmax)}</td>`;
+      tr.addEventListener('click', () => selectStation(i, true));
+      frag.appendChild(tr);
+    });
+    tb.appendChild(frag);
+    const pick = st.sel != null && g.stations[st.sel] ? g.stations[st.sel] : g.dense.find(d => d.s === g.minAt);
+    drawXS(pick);
+  }
+  redraw();
+}
+
+function drawXS(d) {
+  const bar = $('#xsBar');
+  const n = P.lanes, w = P.lineW;
+  const W = d && d.W != null ? d.W : null;
+  const total = st.geo ? st.geo.total : P.seg + n * P.lane;
+  const span = Math.max(W ?? total + P.minSh, total + 0.5);
+  const segs = [];
+  const segW = P.conv === 'eixo' ? P.seg : P.seg + w / 2;
+  segs.push(['seg', segW, fmt(P.seg)]);
+  for (let k = 0; k < n; k++) {
+    const lw = P.conv === 'eixo' ? P.lane : P.lane + w;
+    segs.push(['lane', lw, fmt(P.lane)]);
+  }
+  if (P.conv !== 'eixo') segs[segs.length - 1][1] += w / 2;
+  const sh = W != null ? W - total : null;
+  if (sh != null && sh > 0) segs.push([sh >= P.minSh ? 'sh-ok' : 'sh-bad', sh, 'A ' + fmt(sh)]);
+  bar.innerHTML = segs.map(s => `<div class="${s[0]}" style="flex:${Math.max(s[1], 0.01)} 1 0">${s[2]}</div>`).join('') + (W == null ? `<div class="lane" style="flex:${P.minSh} 1 0;background:repeating-linear-gradient(45deg,#3a3f3d 0 6px,#4c524f 6px 12px)">acost.?</div>` : '');
+  $('#xsLeft').textContent = d ? `${kmStr(P.km0 + d.s)} · bordo ref.` : 'bordo ref.';
+  $('#xsRight').textContent = W != null ? `plataforma ${fmt(W)} m · ${sh < 0 ? 'faltam ' + fmt(-sh) + ' m para as faixas' : 'acost. ' + fmt(sh) + ' m'}` : 'bordo ext.';
+}
+
+function selectStation(i, center) {
+  st.sel = i;
+  const d = st.geo && st.geo.stations[i];
+  if (d && center) {
+    const p = toPx(d.p), r = stage.getBoundingClientRect();
+    const target = Math.max(st.view.s, Math.min(4, r.width / ((d.W || 12) / mppAvg()) * 0.35));
+    st.view.s = target; st.view.tx = r.width / 2 - p.x * target; st.view.ty = r.height / 2 - p.y * target;
+  }
+  update();
+}
+
+/* ---------- entrada de ponteiro ---------- */
+const pointers = new Map();
+let drag = null, pinch = null, lastClick = { t: 0, x: 0, y: 0 };
+function nearestVertex(sx, sy) {
+  let best = null, bd = 10;
+  for (const key of ['ref', 'ext']) st[key].forEach((p, i) => { const q = scr(p), d = Math.hypot(q.x - sx, q.y - sy); if (d < bd) { bd = d; best = { key, i }; } });
+  return best;
+}
+function evPos(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+cv.addEventListener('pointerdown', e => {
+  cv.setPointerCapture(e.pointerId);
+  const p = evPos(e); pointers.set(e.pointerId, p);
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s: st.view.s, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, tx: st.view.tx, ty: st.view.ty };
+    drag = null; return;
+  }
+  const v = st.tool === 'edit' ? nearestVertex(p.x, p.y) : null;
+  drag = { x0: p.x, y0: p.y, tx: st.view.tx, ty: st.view.ty, moved: false, vertex: v, btn: e.button };
+  if (st.tool === 'pan') cv.style.cursor = 'grabbing';
+});
+cv.addEventListener('pointermove', e => {
+  const p = evPos(e);
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, p);
+  st.hover = unscr(p.x, p.y);
+  const ro = $('#readout');
+  ro.textContent = st.img ? (st.sx ? `x ${fmt(st.hover.x * st.sx, 2)} m  y ${fmt(st.hover.y * st.sy, 2)} m` : `${Math.round(st.hover.x)}, ${Math.round(st.hover.y)} px`) + `  ·  zoom ${fmt(st.view.s * 100, 0)}%` : '';
+  if (pinch && pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    const s = Math.max(0.01, Math.min(40, pinch.s * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d));
+    const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+    const wx = (pinch.cx - pinch.tx) / pinch.s, wy = (pinch.cy - pinch.ty) / pinch.s;
+    st.view = { s, tx: cx - wx * s, ty: cy - wy * s };
+    redraw(); return;
+  }
+  if (drag) {
+    const dx = p.x - drag.x0, dy = p.y - drag.y0;
+    if (Math.hypot(dx, dy) > 4) drag.moved = true;
+    if (drag.vertex) {
+      if (drag.moved) { st[drag.vertex.key][drag.vertex.i] = clampImg(st.hover); update(); }
+    } else if (drag.moved) { st.view.tx = drag.tx + dx; st.view.ty = drag.ty + dy; }
+  }
+  redraw();
+});
+function endPtr(e) {
+  pointers.delete(e.pointerId);
+  if (pinch) { if (pointers.size < 2) pinch = null; drag = null; return; }
+  if (!drag) return;
+  const p = evPos(e), d = drag; drag = null;
+  if (st.tool === 'pan') cv.style.cursor = 'grab';
+  if (!d.moved && d.btn === 0) {
+    const now = performance.now();
+    const dbl = now - lastClick.t < 350 && Math.hypot(p.x - lastClick.x, p.y - lastClick.y) < 8;
+    lastClick = { t: now, x: p.x, y: p.y };
+    if (dbl) onDouble(p, e); else onClick(p, e);
+  }
+}
+cv.addEventListener('pointerup', endPtr);
+cv.addEventListener('pointercancel', endPtr);
+cv.addEventListener('pointerleave', () => { if (!drag) { st.hover = null; redraw(); } });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const p = evPos(e);
+  const f = Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0015));
+  const s = Math.max(0.01, Math.min(40, st.view.s * f));
+  const w = unscr(p.x, p.y);
+  st.view = { s, tx: p.x - w.x * s, ty: p.y - w.y * s };
+  redraw();
+}, { passive: false });
+const clampImg = q => ({ x: Math.max(0, Math.min(st.imgW, q.x)), y: Math.max(0, Math.min(st.imgH, q.y)) });
+
+function onClick(p, e) {
+  if (!st.img) return;
+  const w = clampImg(unscr(p.x, p.y));
+  const t = st.tool;
+  if (t === 'ref' || t === 'ext') {
+    const arr = st[t], last = arr[arr.length - 1];
+    if (last && dist(scr(last), p) < 4) return;
+    arr.push(w); update();
+  } else if (t === 'calib') {
+    if (st.calib.length >= 2) st.calib = [];
+    st.calib.push(w);
+    if (st.calib.length === 2) { $('#calibBox').hidden = false; $('#calibLen').focus(); $('#calibLen').select(); }
+    redraw();
+  } else if (t === 'meas') {
+    if (st.meas.length >= 2) st.meas = [];
+    st.meas.push(w); redraw();
+  } else if (t === 'edit' && e.shiftKey) {
+    insertVertex(p);
+  } else if (t === 'pan' && st.geo) {
+    // seleciona a estaca mais próxima
+    let bi = null, bd = 30;
+    st.geo.stations.forEach((d, i) => { const q = scr(toPx(d.p)), dd = Math.hypot(q.x - p.x, q.y - p.y); if (dd < bd) { bd = dd; bi = i; } });
+    if (bi != null) selectStation(bi, false);
+  }
+}
+function onDouble(p) {
+  if (st.tool === 'ref' || st.tool === 'ext') { finishLine(); }
+  else if (st.tool === 'edit') {
+    const v = nearestVertex(p.x, p.y);
+    if (v) { st[v.key].splice(v.i, 1); update(); }
+  }
+}
+function insertVertex(p) {
+  let best = null, bd = 10;
+  for (const key of ['ref', 'ext']) {
+    const a = st[key];
+    for (let i = 1; i < a.length; i++) {
+      const A = scr(a[i - 1]), B = scr(a[i]), d = sub(B, A), l2 = d.x * d.x + d.y * d.y || 1;
+      const u = Math.max(0, Math.min(1, ((p.x - A.x) * d.x + (p.y - A.y) * d.y) / l2));
+      const dd = Math.hypot(A.x + d.x * u - p.x, A.y + d.y * u - p.y);
+      if (dd < bd) { bd = dd; best = { key, i }; }
+    }
+  }
+  if (best) { st[best.key].splice(best.i, 0, unscr(p.x, p.y)); update(); }
+}
+function finishLine() {
+  const t = st.tool;
+  if (t !== 'ref' && t !== 'ext') return;
+  if (st[t].length < 2) { toast('Marque pelo menos 2 pontos.'); return; }
+  setTool(t === 'ref' && st.ext.length < 2 ? 'ext' : 'pan');
+  if (st.tool === 'ext') toast('Bordo de referência concluído. Agora trace o bordo externo.');
+  update();
+}
+window.addEventListener('keydown', e => {
+  if (e.target.matches('input, select, textarea')) { if (e.key === 'Enter' && e.target.id === 'calibLen') applyCalib(); return; }
+  if (e.key === 'Enter' && (st.tool === 'ref' || st.tool === 'ext')) { e.preventDefault(); finishLine(); }
+  else if (e.key === 'Escape') setTool('pan');
+  else if ((e.key === 'Backspace' || e.key === 'Delete') && (st.tool === 'ref' || st.tool === 'ext')) { e.preventDefault(); st[st.tool].pop(); update(); }
+});
+
+/* ---------- escala ---------- */
+function applyCalib() {
+  const L = num($('#calibLen').value);
+  if (st.calib.length !== 2 || !(L > 0)) { toast('Marque os dois pontos e informe a distância.'); return; }
+  const dpx = dist(st.calib[0], st.calib[1]);
+  if (dpx < 2) { toast('Pontos muito próximos.'); return; }
+  setScale(L / dpx, L / dpx, `calibração (${fmt(L)} m em ${fmt(dpx, 1)} px)`);
+  $('#calibBox').hidden = true; setTool('pan');
+  toast(`Escala aplicada: ${fmt(L / dpx * 100)} cm/px`);
+}
+$('#btnCalibOk').addEventListener('click', applyCalib);
+$('#btnGsd').addEventListener('click', () => {
+  const g = num($('#gsdIn').value);
+  if (!(g > 0)) { toast('Informe o GSD em cm/pixel.'); return; }
+  setScale(g / 100, g / 100, 'GSD informado');
+});
+$('#btnGcalc').addEventListener('click', () => {
+  const alt = num($('#gAlt').value), foc = num($('#gFoc').value), sen = num($('#gSen').value), iw = num($('#gImg').value);
+  if (!(alt > 0 && foc > 0 && sen > 0 && iw > 0)) { toast('Preencha todos os campos.'); return; }
+  const gsd = sen * alt / (foc * iw); // m/px
+  $('#gOut').textContent = `${fmt(gsd * 100)} cm/px`;
+  setScale(gsd, gsd, `GSD calculado (h=${alt} m)`);
+});
+
+/* ---------- arquivos ---------- */
+let worldFile = null;
+async function handleFiles(files) {
+  files = [...files];
+  const wf = files.find(f => /\.(jgw|tfw|pgw|wld|jpgw|tifw|pngw)$/i.test(f.name));
+  if (wf) worldFile = parseWorld(await wf.text());
+  const im = files.find(f => /\.(tiff?|jpe?g|png|webp|bmp|gif)$/i.test(f.name) || f.type.startsWith('image/'));
+  if (!im) { if (wf && st.img && worldFile) applyWorld(); return; }
+  $('#imgInfo').textContent = 'Carregando ' + im.name + '…';
+  try {
+    if (/\.tiff?$/i.test(im.name) || im.type === 'image/tiff') await loadTiff(im);
+    else {
+      const bmp = await createImageBitmap(im);
+      setImage(bmp, im.name, `${bmp.width} × ${bmp.height} px`);
+      if (worldFile) applyWorld(); else toast('Imagem carregada. Defina a escala (passo 2).');
+    }
+  } catch (err) {
+    console.error(err);
+    $('#imgInfo').innerHTML = `<b style="color:var(--bad)">Não foi possível abrir ${im.name}.</b> ${err.message || err}. Tente exportar o ortomosaico como JPG/PNG com arquivo .jgw, ou recortar um trecho menor.`;
+  }
+}
+function parseWorld(txt) {
+  const v = txt.trim().split(/\s+/).map(Number);
+  if (v.length < 6 || v.some(x => !isFinite(x))) return null;
+  return { A: v[0], D: v[1], B: v[2], E: v[3], C: v[4], F: v[5] };
+}
+function applyWorld() {
+  const w = worldFile; if (!w) return;
+  let sx = Math.hypot(w.A, w.D), sy = Math.hypot(w.B, w.E), src = 'arquivo de georreferência';
+  if (sx < 0.001) { const lat = w.F * Math.PI / 180; sx *= 111320 * Math.cos(lat); sy *= 110574; src += ' (graus → m)'; }
+  setScale(sx, sy, src); toast('Escala lida do arquivo de georreferência.');
+}
+function setImage(img, name, desc) {
+  st.img = img; st.imgW = img.width; st.imgH = img.height; st.name = name; st.sample = false;
+  st.ref = []; st.ext = []; st.calib = []; st.meas = []; st.sel = null; st.sx = st.sy = null; st.scaleSrc = '';
+  $('#imgInfo').innerHTML = `<b>${name}</b><br>${desc}`;
+  $('#gImg').value = img.width;
+  fit(); update();
+}
+function loadScript(src) { return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('falha ao carregar o leitor de GeoTIFF')); document.head.appendChild(s); }); }
+async function loadTiff(file) {
+  if (!window.GeoTIFF) await loadScript('https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js');
+  const tiff = await GeoTIFF.fromArrayBuffer(await file.arrayBuffer());
+  const im = await tiff.getImage();
+  const w = im.getWidth(), h = im.getHeight();
+  const f = Math.min(1, Math.sqrt(MAXPX / (w * h)));
+  const ow = Math.max(1, Math.round(w * f)), oh = Math.max(1, Math.round(h * f));
+  let data;
+  try { data = await im.readRGB({ interleave: true, enableAlpha: true, width: ow, height: oh }); }
+  catch (e) { data = await im.readRasters({ interleave: true, width: ow, height: oh, samples: [0, 1, 2].slice(0, Math.min(3, im.getSamplesPerPixel())) }); }
+  const ch = Math.round(data.length / (ow * oh));
+  let max = 255;
+  if (!(data instanceof Uint8Array || data instanceof Uint8ClampedArray)) {
+    max = 0; for (let i = 0; i < data.length; i += 97) if (data[i] > max) max = data[i]; max = max || 1;
+  }
+  const c = document.createElement('canvas'); c.width = ow; c.height = oh;
+  const cx = c.getContext('2d'), id = cx.createImageData(ow, oh), o = id.data;
+  for (let i = 0, j = 0; i < ow * oh; i++, j += ch) {
+    const r = data[j], g = ch >= 3 ? data[j + 1] : r, b = ch >= 3 ? data[j + 2] : r;
+    o[i * 4] = r * 255 / max; o[i * 4 + 1] = g * 255 / max; o[i * 4 + 2] = b * 255 / max;
+    o[i * 4 + 3] = ch === 4 ? data[j + 3] * 255 / max : (ch === 2 ? data[j + 1] * 255 / max : 255);
+  }
+  cx.putImageData(id, 0, 0);
+  setImage(c, file.name, `${w} × ${h} px` + (f < 1 ? ` (reduzida para ${ow} × ${oh} px no navegador — recorte trechos menores para manter a resolução original)` : ''));
+  let res = null; try { res = im.getResolution(); } catch (e) { }
+  if (res && res[0]) {
+    let rx = Math.abs(res[0]) * (w / ow), ry = Math.abs(res[1]) * (h / oh), src = 'GeoTIFF';
+    const keys = im.getGeoKeys ? im.getGeoKeys() || {} : {};
+    if (keys.GTModelTypeGeoKey === 2 || rx < 0.0005) { const bb = im.getBoundingBox(); const lat = (bb[1] + bb[3]) / 2 * Math.PI / 180; rx *= 111320 * Math.cos(lat); ry *= 110574; src += ' (geográfico → m)'; }
+    else if (keys.ProjLinearUnitsGeoKey === 9002) { rx *= 0.3048; ry *= 0.3048; src += ' (pés → m)'; }
+    else if (keys.ProjLinearUnitsGeoKey === 9003) { rx *= 0.3048006; ry *= 0.3048006; src += ' (pés EUA → m)'; }
+    setScale(rx, ry, src); toast('Escala lida do GeoTIFF.');
+  } else if (worldFile) applyWorld();
+  else toast('GeoTIFF sem georreferência. Defina a escala (passo 2).');
+}
+$('#fileIn').addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
+stage.addEventListener('dragover', e => { e.preventDefault(); $('#drop').hidden = false; });
+stage.addEventListener('dragleave', e => { if (e.target === stage || e.target === cv) $('#drop').hidden = true; });
+stage.addEventListener('drop', e => { e.preventDefault(); $('#drop').hidden = true; if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+
+/* ---------- botões diversos ---------- */
+$('#btnFit').addEventListener('click', fit);
+$('#btnLabels').addEventListener('click', () => { st.labels = !st.labels; $('#btnLabels').classList.toggle('on', st.labels); redraw(); });
+$('#btnLabels').classList.add('on');
+$('#btnClrRef').addEventListener('click', () => { st.ref = []; st.sel = null; update(); });
+$('#btnClrExt').addEventListener('click', () => { st.ext = []; st.sel = null; update(); });
+$('#btnInvert').addEventListener('click', () => { st.ref.reverse(); st.sel = null; update(); toast('Sentido do estaqueamento invertido.'); });
+
+function csvText() {
+  const g = st.geo; if (!g) return '';
+  const rows = [['estaca', 'dist_m', 'plataforma_m', 'ocupacao_faixas_m', 'acostamento_m', 'acost_min_m', 'situacao', 'faixa_max_m']];
+  g.stations.forEach(d => {
+    const lmax = d.W == null ? '' : (P.conv === 'eixo' ? (d.W - P.seg - P.minSh) / P.lanes : (d.W - P.seg - P.minSh - (P.lanes + 1) * P.lineW) / P.lanes);
+    rows.push([kmStr(P.km0 + d.s), fmt(d.s, 1), fmt(d.W), fmt(g.total), fmt(d.sh), fmt(P.minSh), d.sh == null ? 'sem bordo externo' : d.sh >= P.minSh ? 'atende' : 'nao atende', lmax === '' ? '' : fmt(lmax)]);
+  });
+  return rows.map(r => r.join(';')).join('\n');
+}
+function download(name, blob) {
+  try {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('Arquivo gerado: ' + name);
+  } catch (e) { toast('O navegador bloqueou o download.'); }
+}
+const baseName = () => (st.name || 'projeto').replace(/\.[^.]+$/, '');
+$('#btnCsv').addEventListener('click', () => {
+  const t = csvText(); if (!t) { toast('Nada para exportar ainda.'); return; }
+  download(baseName() + '_estacas.csv', new Blob(['﻿' + t], { type: 'text/csv;charset=utf-8' }));
+  const o = $('#csvOut'); o.value = t; o.hidden = false;
+});
+$('#btnCopy').addEventListener('click', () => {
+  const t = csvText().replace(/;/g, '\t'); if (!t) { toast('Nada para copiar ainda.'); return; }
+  const o = $('#csvOut'); o.value = t; o.hidden = false;
+  navigator.clipboard.writeText(t).then(() => toast('Tabela copiada. Cole no Excel.'), () => { o.focus(); o.select(); toast('Selecionado: use Ctrl+C.'); });
+});
+$('#btnPng').addEventListener('click', () => {
+  if (!st.img) { toast('Abra uma imagem primeiro.'); return; }
+  const f = Math.min(1, Math.sqrt(40e6 / (st.imgW * st.imgH)), 16000 / Math.max(st.imgW, st.imgH));
+  const c = document.createElement('canvas'); c.width = Math.round(st.imgW * f); c.height = Math.round(st.imgH * f);
+  const k = Math.max(1, Math.max(c.width, c.height) / 1600);
+  drawAll(c.getContext('2d'), c.width, c.height, { s: f, tx: 0, ty: 0 }, { k, export: true });
+  c.toBlob(b => b ? download(baseName() + '_projeto_sinalizacao.png', b) : toast('Falha ao gerar PNG.'), 'image/png');
+});
+$('#btnSave').addEventListener('click', () => {
+  const data = { app: 'projeto-sinalizacao', v: 1, imagem: st.name, imgW: st.imgW, imgH: st.imgH, sx: st.sx, sy: st.sy, escala: st.scaleSrc, ref: st.ref, ext: st.ext,
+    params: { seg: $('#pSeg').value, lanes: $('#pLanes').value, lane: $('#pLane').value, minSh: $('#pMin').value, lineW: $('#pLineW').value, step: $('#pStep').value, km: $('#pKm').value, dash: $('#pDash').value, conv: $('#pConv').value } };
+  download(baseName() + '_projeto.json', new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
+});
+$('#projIn').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!st.img) { toast('Abra primeiro a imagem ' + (d.imagem || '') + '.'); return; }
+    if (d.imgW && (d.imgW !== st.imgW || d.imgH !== st.imgH)) toast('Atenção: a imagem aberta tem tamanho diferente da do projeto.');
+    st.ref = d.ref || []; st.ext = d.ext || [];
+    if (d.sx) { st.sx = d.sx; st.sy = d.sy || d.sx; st.scaleSrc = d.escala || 'projeto salvo'; }
+    const p = d.params || {};
+    const set = (id, v) => { if (v != null) $(id).value = v; };
+    set('#pSeg', p.seg); set('#pLanes', p.lanes); set('#pLane', p.lane); set('#pMin', p.minSh); set('#pLineW', p.lineW); set('#pStep', p.step); set('#pKm', p.km); set('#pDash', p.dash); set('#pConv', p.conv);
+    readParams(); toast('Projeto carregado.');
+  } catch (err) { toast('Arquivo de projeto inválido.'); }
+});
+
+/* ---------- exemplo sintético ---------- */
+function makeSample() {
+  const mpp = 0.08, W = 760, H = 3000;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const cx = c.getContext('2d'), id = cx.createImageData(W, H), o = id.data;
+  const xr = y => 250 + 90 * Math.sin(y / 1100);
+  const sm = t => t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
+  const wid = y => 10.9 - 1.5 * sm((y - 950) / 650) + 0.9 * sm((y - 2250) / 500);
+  let seed = 7;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  for (let y = 0; y < H; y++) {
+    const r0 = xr(y), r1 = r0 + wid(y) / mpp, med = r0 - 5.5 / mpp;
+    const old1 = r0 + 0.5 / mpp, old2 = r0 + 4.1 / mpp, old3 = r0 + 7.7 / mpp, lw = 0.15 / mpp;
+    const dashOn = (y * mpp) % 16 < 4;
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4, n = rnd() * 22 - 11;
+      let r, g, b;
+      if (x < med) { r = 64 + n; g = 66 + n; b = 68 + n; }                 // pista oposta
+      else if (x < r0 - 0.3 / mpp) { r = 72 + n * 1.6; g = 98 + n * 1.6; b = 50 + n; } // canteiro gramado
+      else if (x < r0) { r = 120 + n; g = 106 + n; b = 86 + n; }          // transição / meio-fio
+      else if (x < r1) { const sh = x > old3 + lw; const base = sh ? 74 : 48; r = base + n; g = base + 1 + n; b = base + 3 + n; } // pavimento novo / acostamento
+      else if (x < r1 + 0.4 / mpp) { r = 130 + n; g = 118 + n; b = 96 + n; } // cascalho
+      else { r = 80 + n * 1.8; g = 110 + n * 1.8; b = 54 + n; }            // gramado lateral
+      if (Math.abs(x - old1) < lw / 2 || Math.abs(x - old3) < lw / 2 || (dashOn && Math.abs(x - old2) < lw / 2)) { r += 45; g += 45; b += 42; }
+      o[i] = r; o[i + 1] = g; o[i + 2] = b; o[i + 3] = 255;
+    }
+  }
+  cx.putImageData(id, 0, 0);
+  setImage(c, 'exemplo-sintetico.png', `${W} × ${H} px · trecho fictício de 240 m gerado no navegador, não é dado real`);
+  st.sample = true;
+  for (let y = 0; y <= H; y += 150) { st.ref.push({ x: xr(y), y }); st.ext.push({ x: xr(y) + wid(y) / mpp, y }); }
+  $('#pKm').value = '112+400';
+  setScale(mpp, mpp, 'exemplo (8 cm/px)');
+  readParams();
+  setTool('pan');
+}
+$('#btnSample').addEventListener('click', makeSample);
+
+/* ---------- início ---------- */
+setTool('pan');
+resize();
+makeSample();
+
+})();
+</script>
