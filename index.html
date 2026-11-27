@@ -105,7 +105,10 @@ canvas#cv { position: absolute; inset: 0; width: 100%; height: 100%; touch-actio
 .hint { position: absolute; left: 10px; bottom: 10px; right: 10px; color: #e8ecea; background: rgba(20,24,23,.78); border-radius: 6px; padding: 6px 10px; font-size: 12px; pointer-events: none; max-width: 640px; }
 .readout { position: absolute; right: 10px; bottom: 10px; font: 500 11px var(--f-mono); color: #cfd6d3; background: rgba(20,24,23,.78); padding: 4px 8px; border-radius: 5px; pointer-events: none; }
 .drop { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(31,111,92,.35); border: 3px dashed var(--sign); color: #fff; font: 700 22px var(--f-display); pointer-events: none; }
-.toast { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); background: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 6px 12px; border-radius: 6px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.25); pointer-events: none; max-width: 90%; }
+.guide { position: absolute; top: 54px; left: 10px; max-width: min(560px, calc(100% - 20px)); background: var(--panel); color: var(--ink); border: 2px solid var(--sign); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.3); font-size: 13px; line-height: 1.4; }
+.guide b { font-family: var(--f-display); font-size: 14px; letter-spacing: .02em; }
+.guide input { width: 110px; }
+.toast { position: absolute; bottom: 56px; left: 50%; left: 50%; transform: translateX(-50%); background: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 6px 12px; border-radius: 6px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.25); pointer-events: none; max-width: 90%; }
 .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: var(--muted); }
 .legend i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
 textarea#csvOut { width: 100%; height: 90px; font: 11px var(--f-mono); background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 5px; }
@@ -252,6 +255,7 @@ textarea#csvOut { width: 100%; height: 90px; font: 11px var(--f-mono); backgroun
       <button type="button" id="btnFit">Enquadrar</button>
       <button type="button" id="btnLabels">Rótulos</button>
     </div>
+    <div class="guide" id="guide" hidden><div id="guideTxt"></div><div class="row" id="guideBtns"></div></div>
     <div class="hint" id="hint"></div>
     <div class="readout" id="readout"></div>
     <div class="drop" id="drop" hidden>Solte a imagem aqui</div>
@@ -496,6 +500,7 @@ function setTool(t) {
   document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
   $('#hint').textContent = HINTS[t];
   cv.style.cursor = t === 'pan' ? 'grab' : 'crosshair';
+  guide();
   redraw();
 }
 document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => {
@@ -546,7 +551,7 @@ function update() {
   tb.innerHTML = '';
   if (!g || g.minSh == null) {
     rb.textContent = 'aguardando'; rb.className = 'pill n';
-    $('#sumBox').innerHTML = `<div style="grid-column:1/-1"><span>Próximo passo</span>${!st.img ? 'Abra uma imagem' : !st.sx ? 'Defina a escala' : st.ref.length < 2 ? 'Trace o bordo de referência' : 'Trace o bordo externo'}</div>`;
+    $('#sumBox').innerHTML = `<div style="grid-column:1/-1"><span>Próximo passo</span>${!st.img ? 'Abra uma imagem' : !st.sx ? 'Defina a escala' : st.ref.length < 2 ? 'Trace o bordo de referência' : st.ext.length < 2 ? 'Trace o bordo externo' : 'Ajuste os bordos: eles não ficam um de frente para o outro'}</div>`;
     drawXS(null);
   } else {
     const okAll = g.lenBad < 0.01;
@@ -571,6 +576,7 @@ function update() {
     const pick = st.sel != null && g.stations[st.sel] ? g.stations[st.sel] : g.dense.find(d => d.s === g.minAt);
     drawXS(pick);
   }
+  guide();
   redraw();
 }
 
@@ -593,6 +599,60 @@ function drawXS(d) {
   bar.innerHTML = segs.map(s => `<div class="${s[0]}" style="flex:${Math.max(s[1], 0.01)} 1 0">${s[2]}</div>`).join('') + (W == null ? `<div class="lane" style="flex:${P.minSh} 1 0;background:repeating-linear-gradient(45deg,#3a3f3d 0 6px,#4c524f 6px 12px)">acost.?</div>` : '');
   $('#xsLeft').textContent = d ? `${kmStr(P.km0 + d.s)} · bordo ref.` : 'bordo ref.';
   $('#xsRight').textContent = W != null ? `plataforma ${fmt(W)} m · ${sh < 0 ? 'faltam ' + fmt(-sh) + ' m para as faixas' : 'acost. ' + fmt(sh) + ' m'}` : 'bordo ext.';
+}
+
+let guideKey = '';
+function guide() {
+  const box = $('#guide');
+  let key = '', msg = '', btns = [], input = false;
+  const toolOn = t => st.tool === t;
+  if (!st.img) key = 'none';
+  else if (!st.sx || toolOn('calib')) {
+    if (toolOn('calib') && st.calib.length === 2) {
+      key = 'calib2'; input = true;
+      msg = '<b>Calibração.</b> Qual é a distância real entre os dois pontos que você marcou?';
+      btns = [['Aplicar escala', () => applyCalib($('#guideLen').value)], ['Marcar de novo', () => { st.calib = []; guide(true); redraw(); }]];
+    } else if (toolOn('calib')) {
+      key = 'calib' + st.calib.length;
+      msg = `<b>Calibração.</b> Clique ${st.calib.length ? 'na outra ponta' : 'nas duas pontas'} de uma medida conhecida na imagem (largura de uma faixa existente, comprimento de um traço da linha tracejada, uma placa ou um marco medido em campo). Use a roda do mouse para dar zoom.`;
+      btns = [['Cancelar', () => setTool('pan')]];
+    } else {
+      key = 'scale';
+      msg = '<b>Passo 2 de 4 · Escala.</b> Esta imagem não trouxe escala, e sem ela o app não consegue medir. Informe o GSD (cm/pixel, que está no relatório do Pix4D, Metashape, DroneDeploy ou WebODM) ou calibre por uma medida conhecida.';
+      btns = [['Informar GSD', () => { $('#gsdIn').scrollIntoView({ block: 'center', behavior: 'smooth' }); $('#gsdIn').focus(); }], ['Calibrar na imagem', () => setTool('calib')]];
+    }
+  } else if (st.ref.length < 2 || toolOn('ref')) {
+    key = 'ref' + (toolOn('ref') ? 'on' : '') + (st.ref.length >= 2 ? '2' : st.ref.length);
+    msg = toolOn('ref')
+      ? `<b>Passo 3 de 4 · Bordo de referência.</b> Clique ponto a ponto sobre o bordo do pavimento <u>do lado do canteiro central</u> (onde fica a faixa de segurança de ${fmt(P.seg)} m), de uma ponta à outra do trecho. ${st.ref.length >= 2 ? 'Quando chegar ao fim, conclua.' : `Marcados: ${st.ref.length} ponto(s).`}`
+      : '<b>Passo 3 de 4 · Bordo de referência.</b> Agora trace sobre a imagem o bordo do pavimento do lado do canteiro central.';
+    btns = toolOn('ref') ? (st.ref.length >= 2 ? [['Concluir este bordo', finishLine]] : []) : [['Começar a traçar', () => setTool('ref')]];
+  } else if (st.ext.length < 2 || toolOn('ext')) {
+    key = 'ext' + (toolOn('ext') ? 'on' : '') + (st.ext.length >= 2 ? '2' : st.ext.length);
+    msg = toolOn('ext')
+      ? `<b>Passo 4 de 4 · Bordo externo.</b> Clique ponto a ponto sobre o limite externo da plataforma (onde termina o acostamento), cobrindo o mesmo trecho do bordo azul. ${st.ext.length >= 2 ? 'Quando chegar ao fim, conclua.' : `Marcados: ${st.ext.length} ponto(s).`}`
+      : '<b>Passo 4 de 4 · Bordo externo.</b> Falta traçar o limite externo da plataforma, onde termina o acostamento.';
+    btns = toolOn('ext') ? (st.ext.length >= 2 ? [['Concluir e gerar projeto', finishLine]] : []) : [['Começar a traçar', () => setTool('ext')]];
+  } else if (!st.geo || st.geo.minSh == null) {
+    key = 'nohit';
+    msg = '<b>Os dois bordos não ficam um de frente para o outro.</b> O bordo externo (rosa) precisa acompanhar o bordo de referência (azul) ao longo do mesmo trecho, do outro lado da pista. Ajuste os pontos ou apague e trace de novo.';
+    btns = [['Editar vértices', () => setTool('edit')], ['Apagar bordo externo', () => { st.ext = []; update(); }]];
+  } else key = 'done';
+  if (key === guideKey && !arguments[0]) return;
+  guideKey = key;
+  box.hidden = !msg;
+  if (!msg) return;
+  $('#guideTxt').innerHTML = msg;
+  const row = $('#guideBtns'); row.innerHTML = '';
+  if (input) {
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.step = '0.01'; inp.min = '0.01'; inp.id = 'guideLen'; inp.value = $('#calibLen').value; inp.setAttribute('aria-label', 'Distância real em metros');
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') applyCalib(inp.value); });
+    const lab = document.createElement('span'); lab.textContent = 'm';
+    row.append(inp, lab);
+    setTimeout(() => { inp.focus(); inp.select(); }, 0);
+  }
+  btns.forEach(([t, fn], i) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; if (i === 0) b.className = 'primary'; b.addEventListener('click', fn); row.appendChild(b); });
 }
 
 function selectStation(i, center) {
@@ -689,7 +749,8 @@ function onClick(p, e) {
   } else if (t === 'calib') {
     if (st.calib.length >= 2) st.calib = [];
     st.calib.push(w);
-    if (st.calib.length === 2) { $('#calibBox').hidden = false; $('#calibLen').focus(); $('#calibLen').select(); }
+    if (st.calib.length === 2) $('#calibBox').hidden = false;
+    guide();
     redraw();
   } else if (t === 'meas') {
     if (st.meas.length >= 2) st.meas = [];
@@ -739,16 +800,17 @@ window.addEventListener('keydown', e => {
 });
 
 /* ---------- escala ---------- */
-function applyCalib() {
+function applyCalib(v) {
+  if (typeof v === 'string') $('#calibLen').value = v;
   const L = num($('#calibLen').value);
   if (st.calib.length !== 2 || !(L > 0)) { toast('Marque os dois pontos e informe a distância.'); return; }
   const dpx = dist(st.calib[0], st.calib[1]);
   if (dpx < 2) { toast('Pontos muito próximos.'); return; }
   setScale(L / dpx, L / dpx, `calibração (${fmt(L)} m em ${fmt(dpx, 1)} px)`);
-  $('#calibBox').hidden = true; setTool('pan');
+  $('#calibBox').hidden = true; st.calib = []; setTool('pan');
   toast(`Escala aplicada: ${fmt(L / dpx * 100)} cm/px`);
 }
-$('#btnCalibOk').addEventListener('click', applyCalib);
+$('#btnCalibOk').addEventListener('click', () => applyCalib());
 $('#btnGsd').addEventListener('click', () => {
   const g = num($('#gsdIn').value);
   if (!(g > 0)) { toast('Informe o GSD em cm/pixel.'); return; }
