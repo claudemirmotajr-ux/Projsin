@@ -213,7 +213,7 @@ textarea#csvOut { width: 100%; height: 90px; font: 11px var(--f-mono); backgroun
         <div class="xs-cap"><span id="xsLeft">bordo ref.</span><span id="xsRight">bordo ext.</span></div>
       </div>
       <div class="legend">
-        <span><i style="background:#f4f4ef"></i>linhas de projeto</span>
+        <span><i style="background:#ff8a1f"></i>pintura de projeto</span>
         <span><i style="background:#3fd0ff"></i>bordo ref.</span>
         <span><i style="background:#ff5fd2"></i>bordo ext.</span>
         <span><i style="background:#2fbf5b"></i>acost. ≥ mín.</span>
@@ -410,7 +410,7 @@ function drawAll(c, W, H, view, opt = {}) {
       c.lineCap = 'butt'; c.lineJoin = 'round';
       if (ax.kind === 'lms') c.setLineDash([m2s(P.dash), m2s(P.gap)]); else c.setLineDash([]);
       c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = lw + 2.5 * k; c.stroke();
-      c.strokeStyle = '#f4f4ef'; c.lineWidth = lw; c.stroke();
+      c.strokeStyle = '#ff8a1f'; c.lineWidth = lw; c.stroke();
       c.setLineDash([]);
     }
     // estacas
@@ -859,6 +859,7 @@ function applyWorld() {
 function setImage(img, name, desc) {
   st.img = img; st.imgW = img.width; st.imgH = img.height; st.name = name; st.sample = false;
   st.ref = []; st.ext = []; st.calib = []; st.meas = []; st.sel = null; st.sx = st.sy = null; st.scaleSrc = '';
+  $('#pKm').value = '0+000'; P.km0 = 0;
   $('#imgInfo').innerHTML = `<b>${name}</b><br>${desc}`;
   $('#gImg').value = img.width;
   fit(); update();
